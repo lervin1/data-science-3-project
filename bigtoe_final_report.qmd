@@ -1,0 +1,438 @@
+---
+title: "Final Project Report"
+subtitle: |
+  | Final Project 
+  | Data Science 3 with R (STAT 301-3)
+author:
+  - name: Lindsay Ervin
+  - name: Bennett Markinson
+  - name: Justine Murdock
+  - name: Jack White
+date: today
+format:
+  html:
+    
+    toc: true
+    toc-location: right
+    embed-resources: true
+execute:
+  echo: false
+  warning: false
+from: markdown+emoji 
+reference-location: margin
+citation-location: margin
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+#| label: load-data-packages
+#| echo: false
+
+# load packages
+library(tidyverse)
+library(tidymodels)
+library(here)
+library(knitr)
+
+# load necessary data/figures
+load(here("initial-model-stage/results/hyperparameters.rda"))
+load(here("figures/missingness_table.rda"))
+load(here("figures/conf_matrix.rda"))
+load(here("figures/results_table.rda"))
+load(here("figures/ensemble_metric.rda"))
+load(here("refined-model-stage/results/results_table_2.rda"))
+load(here("final-model/results/final_metrics.rda"))
+
+```
+
+::: {.callout-tip icon=false}
+
+## Github Repo Link
+
+[Bigtoe Github Repo Link](https://github.com/stat301-3-2024-spring/final-project-3-team-bigtoe.git)
+
+:::
+
+
+## Introduction
+
+In sports, numbers matter more than ever. As athletes ourselves, we're interested in how stats and sports come together, especially in baseball where every pitch, swing, and hit hides valuable insights. Our project hits all of these points, while using machine learning and tidymodels to predict the target variable, `is_hit`, which looks at whether a pitch will lead to a base hit (1) or not (0), using various different variables. To clarify a base hit is not just a ball that is hit in play but a ball in play that leads to a single, double, triple, or home run. This includes variables that encompass many different aspects of baseball and pitching, such as how fast the pitch is, what angle it comes in at, and the specific statistics of the batter and pitcher. By doing this, we hope to find patterns in the data that tell us more about how baseball works while effectively predicting whether there will be a hit or not.
+
+We are driven by the mix of sports and numbers. As athletes ourselves, we see how powerful data can be in changing the way sports are played and understood. With our predictive model, we want to help players, coaches, and teams make better decisions and play better on the field. Our dataset, `baseball_dataset`, has an abundant amount of information about baseball games. It tells us everything from how fast a pitch was to how the game turned out. With this data, we're looking to find new insights to improve game preparedness and performance. In summary, our project mixes sports and science in order to predict if pitches in baseball games are hit by the batters using a variety of in-game statistics.
+
+## Data Overview & Quality
+
+### The Dataset
+
+One of our group members, Bennett, is a member of the NU Men's baseball team. With his knowledge and connections from both NU men's baseball and his work so far in the sports analysis industry, we were able to source this dataset from one of his connections who works within the Chicago White Sox organization. This dataset, when given to us, contained every pitch (one pitch is one observation) with all the included variables (which will be discussed below) from the 2023 MLB Baseball season. However, this dataset was over 1GB in size with over 120,000 observations, so in order to create a sizable dataset that would effectively work for us to train a wide variety of models, we randomly downsized the larger dataset of all the pitches across the whole league during the 2023 MLB to only 41,749 observations.
+
+In the baseball dataset, there are 41,749 observations with 93 variables. We understand that there are ultimately a lot of variables, but we will perform certain functions in the future, such as lasso regression to perform variable selection and get the top 20 most important variables for feature engineering and predicting whether a batted ball is hit or not.In regards to the type of variables, the majority of the variables are numeric, as there are 72 numeric variables, measuring quantitative metrics related to the pitch and swing. There are 18 categorical/factor variables. Of these factor variables (including our target variable `is_hit`), most have a number of factor levels that are in the appropriate range to use in our modeling. Finally, we also removed other variables that we knew would have no predictive value for our model based on our group’s baseball knowledge and this trimmed our data set down to 50 variables. 
+
+
+### Our Prediction Problem
+
+Our prediction objective is to predict if a pitch in an MLB game resulted in a ball in play or not. This is a classification prediction problem as we are looking to predict if a pitch (one observation) resulted in a ball in play (the target variable: `is_hit`).  As all 4 of us are student-athletes, we are always surrounded by sports data. It underlies every aspect of our training in order to improve in our respective sports. As a result, we all have a genuine interest in this type of data, and upon discussion, we landed on specifically baseball data for this project, as we found interest in how different pitch metrics could predict/be impactful in predicting if a certain pitch in a baseball game resulted in a ball in play. Additionally, many of us are interning in the sports industry this summer so working with sports data will only help us sharpen our skills and knowledge about the data and the industry before our work begins.
+
+To do this part of our data filtering process, we filtered this data set down to only include pitches that resulted in a ball being put in play so we could predict whether a batted ball would result in a hit or not based on metrics like exit velocity, launch angle, distance, and more. Furthermore, the expected batting average based on the input variables of a swing is a very important metric in professional baseball so we thought it would be very valuable to predict this. In this problem, we are just classifying if a batted ball is a hit or not but if we wanted to take it a step further we could also look at the percentage chance a batted ball is a hit to find the expected batting average.
+
+### Missingness
+
+Outlined in @fig-missingness, you will see a chart outlining any variable with missing values for our dataset. As can be seen, the variables `on_3b`, `on_2b`, and `on_1b` have the most missingness by a lot. These variables illustrate if there is a runner on a certain base during the pitch. These variables are not very important for what we are predicting, therefore we will remove them later on in the process. All of these variables have more than 20% missingness, therefore they will not be included in the recipe. The other variables that display missingness have less than 10% missingness, therefore we can just impute these missing variables in the recipe.
+
+For a more visual interpretation of the missingness in our dataset, please view @fig-miss in the Appendix.
+
+## Our Target Variable
+
+Our target variable is_hit will be used in order to form the binary classification prediction problem. I will now explore this variable to get a better sense of the distribution and balance, so that we can address potential concerns later on in our modeling process.
+
+![A barplot indicating whether a ball was hit (1) or not (0).](figures/fig_1.png){#fig-1}
+
+
+As we can see from @fig-1, there are significantly less non-hit pitches than pitches that were hit. This is expected, as it is more difficult for a batter to hit a ball than to miss it. Because we have imbalance, we must address this later on in our machine learning process. During our initial splits and folds, we will utilize stratified sampling to address the imbalance of our target variable.
+
+The target variable we will be looking to predict is `is_hit`, which is a dummy variable that represents whether a pitch was hit or not. Below, you can see a graph showing the comparison of how often a pitch was hit vs. not in our dataset. Out of the 41,749 pitches (observations) in our dataset, 28,306 were not hit while 13,443 pitches were hit. This means that 32.2% of pitches were hit. dds
+
+## Methods
+
+### Assesment Metric
+
+Since our problem is a classification problem, we will be looking mainly at the metric of ROC AUC, as this is the metric we will use to pick our best model. We will also find metrics for Accuracy and the Confusion Matrix for our best model, as well as further performance metrics of precision, sensitivity, specificity, and f1 measure just to visualize a more complex metric set for this final model.
+
+### Initial Setup
+
+In the initial setup r-script you will find the necessary steps to perform our initial split, testing, and training data as well as our folds data. Additionally, we trimmed down the number of variables in our dataset as our dataset initially had over 90 variables and many of them were not important for predicting whether or not a hit occurred. We cut this down to 50 variables.
+
+Next, to begin the process, first we got rid of variables that have a lot of missingness and created factor variables so that our recipes run smoother. Then, we performed our initial split with a 80/20 proportion. We chose to split it this way because we feel the 80% allocated for the training data is a sufficient amount to learn about patterns and relationships within the data. It is a split that we have done many times in class, and it has worked well with all different types of data.
+
+After we performed our initial split, we essentially created the testing and training datasets. We then decided to utilize the method of cross-validation, using the `vfold_cv` function, and create a folds dataset. We utilized 8 folds and 3 repeats, which means the entire cross-validation process is repeated 3 times. We thought these numbers were sufficient while taking account for the size of our dataset as well as computation time.
+
+We also made sure to use stratified sampling by setting the `strata` to `is_hit`, our target variable. This ultimately addresses the imbalance problem of our target variable that we found during our data exploration phase.
+
+Lastly, we made sure to save the initial split, testing, training, and folds data in our `data-splits` sub-directory so we can use them later on in our project.
+
+### Recipes
+
+For our initial models we created 3 recipes that all encompass a kitchen sink recipe. One recipe is a generic recipe for parametric models, one is a tree-based recipe, and one is a Naive Bayes recipe for our Naive Bayes model (which we are using as a baseline model). In order to create these recipes, we used lasso variable selection so that we would only include variables that are deemed important and necessary. Some of us used lasso variable selection for our prediction problems, and we got great results, therefore we thought it would be beneficial to utilize this technique for our prediction problem.
+
+Even though we had good methodology when creating our initial 3 recipes, crafting our recipes was still difficult because our data set had an abundant amount of missingness.
+
+During our lasso variable selection process, we excluded variables with excessive NA values and those with low predictive power based on our group's baseball knowledge. We then imputed the mode for all of our nominal predictors and imputed the mean for all numeric predictors. We then applied steps for dummy encoding, assigned unseen factors to new, pooled factors with a ton of NA values into another category, removed zero-variance predictors, and normalized the data for my parametric recipe. 
+
+When it came to our `recipes` r-script, we utilized only the variables that the lasso variable selection process picked out for us. We included a majority of the same steps, with the exception of a `step_novel` and `step_other`. `step_novel`  is used to handle new levels in categorical variables that were not present in the training data, while `step_other` is used to combine infrequent levels of a categorical variable into a single "other" category. We also utilized `step_lincomb` to remove numeric variables that had perfect linear relationships with other variables. This was because we were worried some of the variables in our data set were created using other variables. For example, sometimes hit distance is calculated using launch angle and exit velocity rather than just tracking the distance traveled.
+
+We followed a similar process for our tree recipe, with the addition of one-hot encoding for all nominal variables during the dummy step and then a slight Naive Bayes adjustment as well.
+
+Initially, for the imputation of numerical variables we had to manually select the variables to use because many had NA values, and we could only use variables with complete data for imputation. However, we removed this in order to cut down the run time of some of our models.
+
+### Initial Models Types & Tuning Parameters
+
+For our first step, we ran 10 models: Naive Bayes, Logistic, Elastic Net, Random Forest, Boosted Tree, Support Vector Machine (SVM) Radial, MARS, K-Nearest Neighbor (KNN), a Neural Network model, and an Ensemble Model that had the Boosted Tree model type, the MARS model type, and the Neural Network model type because we want to use well performing models that were also all different types of models.
+
+**Naive Bayes Model:** This model predicts the target variable using a simple statistic, such as the mean or median, as a reference point for evaluating the performance of more complex models.
+
+**Logistic Model:** This model estimates the probability of an event occurring by fitting data to a logistic curve. It is particularly useful for scenarios where the outcome is discrete, such as predicting whether a customer will purchase a product (yes/no).
+
+**Elastic Net:** This regression model applies a combination of Lasso and Ridge models to the regression coefficients. This offers a balance between feature selection and regularization to handle multicollinearity and overfitting.
+
+In an Elastic Net model, the penalty parameter controls the amount of regularization that is applied to the regression coefficients, while the mixture parameter balances between Lasso and Ridge penalties to select relevant features and prevent overfitting. For this initial run using the kitchen sink recipe, we used the default tuning parameters. We felt that these tuning parameters were sufficient because we wanted to see the initial trends. 
+
+
+**Random Forest:** The Random Forest model is an ensemble learning method that constructs multiple decision trees during training and outputs the mode of the classes (classification) of the individual trees. This model helps improve the predictive performance and control overfitting. For our model we used key hyperparameters for tuning including...
+
+*trees:* Number of trees in the forest. 
+
+*mtry:* Number of features to consider at each split.
+
+*min_node:* Minimum size of terminal nodes.
+
+For this model, we used the default tuning parameters for the `min_node`, but for the `mtry` and `trees` params, we updated them. This allowed for a good basis to see how we can change it in the future, while making sure we account for computatioinal time.
+
+**Boosted Tree:** Boosted trees are an ensemble technique that combines the predictions of several base learners (usually decision trees) to improve robustness. The method works by adding trees to minimize the residual errors of the combined ensemble. For our model, we used key hyperparameters for tuning including `trees`, `mtry`, `min_n`, and `learn_rate`. We set `mtry` to range from 1 to 49 and trees to range from 1k to 2k. We used a grid with 4 levels with trees, min_n, and learn rate and 3 levels for `mtry`. We updated these parameters to account for computational time
+
+**SVM Radial:** Support Vector Machines (SVM) with a radial basis function (RBF) kernel are effective for non-linear classification tasks. This model transforms the original feature space to a higher dimension where a hyperplane can separate different classes.
+
+For this model we tuned `cost` and `rbf sigma`. We left the ranges of these values to their default values and used a grid with 3 levels. We lowered the levels to account for computational time.
+
+**Mars Model:** Multivariate Adaptive Regression Splines (MARS) is a non-parametric technique that models relationships by fitting piecewise linear regressions. This method can capture complex, non-linear relationships.
+
+For this model we tuned `num_terms` and `prod_degree`. We left the ranges of these values to their default values and used a grid with 5 levels. We felt this would give us a good baseline for potential refinement.
+
+**K-Nearest Neighbor (KNN):** KNN is a simple, instance-based learning algorithm that classifies a sample based on the majority class of its k-nearest neighbors in the feature space.
+
+For this model we tuned `num_terms` and `prod_degree`. We left the ranges of these values to their default values and used a grid with 5 levels
+For this model we tuned neighbors and left thee range of values to its default range. We then used a regular grid with 5 levels. We felt that this was a good basis for our KNN model.
+
+**Initial Stage Ensemble Model:** This ensemble model we created combines predictions from a boosted tree model, a MARS model, and a neural network model to leverage their individual strengths. The aim is to create a more robust and accurate prediction by averaging or voting among the models' predictions.
+
+Each model uses specific hyperparameters and tuning grids to optimize performance, ensuring that diverse and complementary approaches are employed to achieve the best predictive results.
+
+For the boosted tree model we once again used key hyperparameters for tuning including `trees`, `mtry`, `min_n`, and `learn_rate`. This time we set ranges for each hyperarameter based on our previous boosted tree models success. We set `mtry` to choose values from 11 to 41, trees from 1-2k, min_n from 2 to 16, and `learn_rate` from -4 to -1. We then used a regular grid with 4 levels for `mtry` and learn rate, 3 levels for trees, and 2 levels for `min_n`.
+
+For the neural network ensemble model we tuned hidden units and penalty. We set the range of values for hidden units to go from 6 to 10 and left the penalty value to its default range. We used a regular grid with 5 levels.
+
+For the mars portion of our ensemble model, we tuned the number of terms and `prod_degree`. We left both of these values to their default terms. We used a regular grid with 5 levels.
+
+We then created a data stack with the tuned results from the Boosted Tree model, the Neural Network model, and the MARS model.
+
+## Model Building & Selection
+
+```{r}
+#| label: fig-results
+#| echo: false
+#| fig-cap: A table of our initial models that we fit/tuned.
+
+results_table |> 
+  kable()
+```
+
+
+@fig-results presents the performance metrics of different models using the ROC AUC metric. The columns include the mean ROC AUC score, the number of iterations (n), standard error, model type, recipe, runtime, and the metric used.
+
+```{r}
+#| label: fig-ensemble
+#| echo: false
+#| fig-cap: A table outlining our performance metrics for our ensemble model.
+
+tbl_en |>
+  kable()
+```
+
+@fig-ensemble outlines our ROC AUC for our ensemble model. It is very high, and we did not use this for our refined models because we suspected overfitting.
+
+Boosted Tree and Random Forest models achieve the highest ROC AUC scores but have the longest runtimes. Neural Network offers a good balance between performance and runtime. MARS provides a solid performance improvement with moderate runtime. Simpler models like Logistic and Elastic Net perform reasonably well with very low runtimes, making them suitable for quick evaluations. K-Nearest Neighbors and SVM Radial show lower performance relative to their runtime, suggesting they might not be the best choices for this specific task.
+
+Our ensemble model had an ROC AUC of .996. This is a very high value and displays a very strong model that accurately predicted almost every observation and whether or not it was a hit or not. Additionally, the run time for the ensemble model is 11,020 seconds, or 183 minutes. This time includes the time it took to tune each of the candidates and run the ensemble model. However, due to the fact that this ROC AUC value is very high we are concerned that this model may be overfit on our testing data set. Finally, even though we used 3 different model types and candidates, as seen by @fig-blend, only 6 models, all of which were boosted tree models made it into the final ensemble model. For this lack of variety in the final result, along with the potential for overfitting, we feel best to move forward with our other strong models instead for model refinement.
+
+![An autoplot depicting the final candidates for the ensemble model.](figures/autoplot_blend.png){#fig-blend}
+
+## Refined Model Stage 
+
+### Model Selection
+
+We decided to select our BT, RF, and NN models as our 3 model types for refinement. We did this because these are the 3 strongest models according to our chosen ROC_AUC metric besides our ensemble model and we did not want to include our ensemble model because we were worried about overfitting.
+
+### Reviewing Tuning Hyperparameters for Top Models
+
+Now we will review our tuning hyperparameters of our top 3 models. As stated before, our best 3 models from our initial stages were the Boosted Tree model, Neural Network model, and Random Forest model. @fig-hyperparams will outline these tuning hyperparameters.
+
+```{r}
+#| label: fig-hyperparams
+#| echo: false
+#| fig-cap: A table outlining our top three model's hypertuning parameters.
+
+hyperparameters |> 
+  kable()
+```
+
+For our initial model stage, the top 3 Initial Models and Hyperparameters are below. Our best model was a boosted tree model and it had the following hyperparameters.
+
+`mtry`: 17
+
+`trees`: 1000
+
+`min_n`: 14
+
+`learn_rate`: 0.04641589
+
+Our second best model was the Random Forest model. It had the following hyperparameters.
+
+`mtry`: 22
+
+`trees`: 750
+
+`min_n`: 27
+
+Our third best model was the neural network model with the following hyperparameters.
+
+`hidden_units`: 10
+
+`penalty`: 1
+
+The Boosted Tree model is configured with 17 predictors tried at each split, 1000 trees, a minimal node size of 14, and a learning rate of 0.04641589. This configuration aims to balance model complexity and learning speed. The Random Forest model uses 22 predictors at each split, 750 trees, and a minimal node size of 27. This setup focuses on leveraging a slightly higher number of predictors to improve model performance. The Neural Network model is configured with 10 hidden units and a regularization penalty of 1, which helps in preventing overfitting while maintaining the model's ability to learn complex patterns. These configurations are selected to optimize the models' performance in terms of ROC AUC, ensuring that the chosen models are robust and capable of delivering high predictive accuracy.
+
+Taking all of this into consideration, there is much room for improvement for our refined model tuning hyperparameters. We will outline this more when looking at the autoplots for these models.
+
+#### Boosted Tree
+
+![An autoplot outlining the hyperparameters for our initial boosted tree model.](figures/fig_bt_autoplot.png){#fig-3}
+
+@fig-3 illustrates the performance of a model across various hyperparameter configurations for the boosted tree model, evaluated using the ROC AUC metric. The x-axis represents the number of randomly selected predictors, while the y-axis indicates the ROC AUC score. Different subplots correspond to different learning rates and tree numbers. Within each subplot, lines of varying colors represent different minimal node sizes.
+
+Key observations:
+
+1. Generally, the ROC AUC score improves as the number of randomly selected predictors increases, stabilizing or slightly improving beyond a certain point.
+2. Lower learning rates (0.001 and 0.0068) tend to yield better performance compared to higher learning rates (0.046 and 0.316).
+3. A higher number of trees generally improves performance, but the gains diminish as the number of trees increases beyond 1500.
+4. Minimal node size does not appear to have a significant impact on performance, as the lines for different minimal node sizes are close together.
+
+These results suggest that optimizing the number of randomly selected predictors and the number of trees, while maintaining a relatively low learning rate, can lead to better model performance.
+
+
+#### Random Forest
+
+![An autoplot outlining the hyperparameters for our initial random forest model.](figures/fig_rf_autoplot.png){#fig-4}
+
+@fig-4 displays the performance of a Random Forest model with different hyperparameter configurations, evaluated using the ROC AUC metric. The x-axis represents the number of randomly selected predictors, while the y-axis shows the ROC AUC score. The plot contains two subplots corresponding to different numbers of trees (250 and 750). Each line within the subplots represents a different minimal node size.
+
+Key observations:
+
+1. The ROC AUC score improves significantly as the number of randomly selected predictors increases, reaching a plateau around 10 predictors.
+2. Both configurations of trees (250 and 750) show similar performance trends, with a slight edge for the model with 750 trees.
+3. Minimal node size does not appear to have a significant impact on performance, as indicated by the closely grouped lines for different minimal node sizes.
+
+Overall, these results suggest that increasing the number of randomly selected predictors improves model performance up to a certain point. The number of trees also contributes positively, although the gains diminish with higher numbers. Minimal node size has minimal impact on the ROC AUC score in this scenario.
+
+#### Neural Network
+
+![An autoplot outlining the hyperparameters for our initial neural network model.](figures/fig_nn_autoplot.png){#fig-5}
+
+@fig-5 shows the performance of a Neural Network model with different configurations of hidden units and regularization amounts, evaluated using the ROC AUC metric. The x-axis represents the number of hidden units, while the y-axis shows the ROC AUC score. Lines of different colors indicate varying amounts of regularization.
+
+Key observations:
+
+1. The ROC AUC score generally improves as the number of hidden units increases, indicating better model performance with more hidden units.
+2. The regularization amount has a noticeable impact on performance. Moderate regularization values tend to perform better compared to extremely high or low values.
+3. The lines converge as the number of hidden units increases, suggesting that the choice of regularization becomes less critical with more hidden units.
+4. The model achieves the highest performance with 10 hidden units, across most regularization values.
+
+Overall, these results suggest that increasing the number of hidden units enhances model performance, and an appropriate amount of regularization is essential to prevent overfitting while maximizing the ROC AUC score. Moderate regularization values generally yield the best results.
+
+
+### Refined Model Method
+
+For our refined model stage, the first thing we did was create another iteration of folds with 5 folds and 3 repeats. We repeated the lasso variable selection that we did in the initial model stage because the lasso variable selection worked very well for us in generating a strong model and helping limit our run time.
+
+The next thing we did was that we slightly adjusted our recipe. We continued to capture the lasso variable selection as mentioned above. Next, we categorized pitch number appearance into high or low as we figured that as a pitcher got tired he was likely to give up more hits. Additionally, we felt as though some of the dimensional variable predictors were highly correlated with each other so we added a step_corr with a threshold of 0.8 to reduce the heavy correlation. We kept the rest of the recipe the same since our initial models performed so well and we didn’t want to make large recipe changes that might hurt our model.
+
+We then ran a refined model script for our 3 top performing models from our initial stage, our boosted tree, random forest, and neural network model. For our boosted tree model, we once again tuned `mtry`, `trees`, `min_n`, and `learn_rate` in addition to plugging in our new recipe. For our random forest model we tuned `mtry`, `trees`, and `min_n`. For our Neural Network model we tuned `hidden_units` and `penalty`. 
+
+For this step we were very intentional with our parameter ranges. We saw which hyperparameters generated the best results in our initial stage and narrowed our ranges around these optimal values so we could test even more values within the strongest range. This led to us using the following hyperparameters.
+
+**Boosted Tree Model:** We set the mtry from 11 to 31, the trees from 1000 to 2000, the min_n from 2 to 22, and the learn rate from -4 to -2.  We used a regular grid with 3 levels.
+
+**Random Forest Model:** We set the mtry from 11 to 31, the trees from 500 to 800, and the min_n from 2 to 22. We used a regular grid with 3 levels for mtry and min_n, and 2 levels for trees.
+
+**Neural Network Model:** We set the hidden units to be from 6 to 10 and left penalty to its default range. We used a regular grid with 5 levels.
+
+Our results in the refined model stage were as follows:
+
+The optimal hyperparameters for the BT model was a mtry of 21, 2000 trees, a min_n of 2, and  learn rate of 0.01. The optimal hyperparameters for the RF model was a mtry of 21, 800 trees, and a min_n of 22.
+
+The optimal hyperparameters for the NN model was a hidden units value of 10 and a penalty of 1.
+
+```{r}
+#| label: fig-results-2
+#| echo: false
+#| fig-cap: A results table outlined our refined models.
+
+results_table_2 |> 
+  kable()
+```
+
+
+
+@fig-results-2 presents the performance metrics of the top 3 models using the Feature Engineering Recipe, evaluated using the ROC AUC metric. The columns include the mean ROC AUC score, the number of iterations (n), standard error, model type, recipe, runtime, and the metric used.
+The Boosted Tree model achieves the highest mean ROC AUC score of 0.9661, indicating the best performance among the three models. However, it also has the highest runtime of 17931.78 seconds, reflecting the computational cost of the model.
+
+The **Random Forest** model closely follows with a mean ROC AUC score of 0.9639 and a lower runtime of 10743.35 seconds. This model provides a good balance between performance and runtime.
+
+The **Neural Network** model has the lowest mean ROC AUC score of 0.9412 among the top 3 but features the shortest runtime of 8365.53 seconds. It offers a trade-off with slightly reduced performance but faster execution.
+
+These results indicate that while the **Boosted Tree** model performs best, the Random Forest and Neural Network models offer competitive performance with lower computational requirements, making them viable alternatives depending on the context and resource availability.
+
+## Final Model Analysis
+
+For our final model, we decided to use our boosted tree model form our initial model stage. We decided to use this model because out of all the models from the initial model stage and the refined model stage, this BT model had the highest ROC AUC.
+We ran a final fit of the BT model workflow on our training data and saved the results. @fig-final summarizes our model metrics
+
+```{r}
+#| label: fig-final
+#| echo: false
+#| fig-cap: This table summarizes our model metrics.
+
+final_metrics |> 
+  kable()
+```
+
+
+Performance Metrics
+
+ROC AUC (Receiver Operating Characteristic Area Under the Curve)
+Value: 0.970
+Interpretation: A ROC AUC score of 0.970 indicates excellent performance in distinguishing between the positive and negative classes. This is a high value, suggesting that your model has a high true positive rate and a low false positive rate.
+
+Accuracy
+Value: 0.940
+Interpretation: Accuracy of 0.940 means that 94% of the total predictions made by the model are correct. While this is a strong indicator of performance, it's important to consider other metrics, especially in cases of imbalanced datasets.
+
+Specificity
+Value: 0.856
+Interpretation: Specificity (or true negative rate) of 0.856 indicates that the model correctly identifies 85.6% of the actual negatives. This means it is fairly good at not predicting false positives.
+
+Sensitivity (Recall)
+Value: 0.980
+Interpretation: Sensitivity of 0.980 shows that the model correctly identifies 98% of the actual positives. This high sensitivity is crucial in applications where missing a positive case (false negative) is costly.
+
+Positive Predictive Value (Precision)
+Value: 0.935
+Interpretation: A precision of 0.935 implies that when the model predicts a positive class, it is correct 93.5% of the time. This metric is important in scenarios where the cost of a false positive is high.
+
+Negative Predictive Value
+Value: 0.952
+Interpretation: Negative predictive value of 0.952 means that when the model predicts a negative class, it is correct 95.2% of the time. This helps in understanding the reliability of the negative predictions.
+
+Additionally, here is a confusion matrix of our results.
+
+
+```{r}
+#| label: fig-confmatrix
+#| echo: false
+#| fig-cap: A confusion matrix from our final model fit.
+
+conf_matrix |> 
+  autoplot(type = "heatmap")
+```
+
+@fig-confmatrix provides a detailed breakdown of the model's performance. It shows that the model correctly predicted the negative class (0) for 5545 instances, known as true negatives. It also accurately predicted the positive class (1) for 2300 instances, referred to as true positives. However, the model incorrectly classified 115 negative instances as positive, resulting in false positives, and misclassified 388 positive instances as negative, resulting in false negatives. Overall, the high number of true positives and true negatives reflects the model's strong performance, with few errors in both false positives and false negatives. These results demonstrate the model's effectiveness in distinguishing between the positive and negative classes, making it a reliable tool for classification tasks.
+
+
+## Conclusion
+
+Through our data-driven exploration into baseball hits, we have gained valuable insights into the factors that influence whether a pitch results in a hit. By leveraging a dataset from the Chicago White Sox organization and employing advanced machine learning techniques, we have successfully built predictive models that reveal the underlying patterns in baseball hits.
+
+Key Insights and Discoveries:
+
+1. **Boosted Tree Model:** This model achieved the highest ROC AUC score, indicating its superior ability to predict hits accurately. The detailed hyperparameter tuning of `mtry`, `trees`, `min_n`, and `learn_rate` significantly contributed to its performance.
+2. **Random Forest Model:** Closely following the boosted tree model, the random forest model also demonstrated high predictive accuracy with a balanced runtime, making it an efficient alternative for practical applications.
+3. **Neural Network Model:** While slightly less accurate, the neural network model provided faster computation times, highlighting its potential for real-time predictive scenarios.
+
+Future Work and Next Steps:
+
+1. **Expanding Feature Selection:** Future work could involve exploring additional features and advanced feature engineering techniques to enhance model accuracy further. Variables such as player fatigue, weather conditions, and historical performance trends could provide deeper insights.
+2. **Real-Time Prediction:** Implementing these models in a real-time prediction system could offer immediate value to coaches and players, enabling dynamic strategy adjustments during games. It would be very cool to be able to tell what the probability of a hit was during an actual game. This could help a coach realize if a pitcher is getting unlucky and should stay in the game or if he is pitching very poorly.
+3. **Changes in gameplay:** Conducting a study over a few different years could be very helpful to analyze changes and trends in understanding the evolution of gameplay and player performance. Players may be getting more and more hits or pitchers may be getting worse and lead to a greater chance of a hit being recorded
+
+There are also a few research questions that we did not address in our project due to constraints that could be helpful.
+
+1. How do external factors such as weather conditions and crowd noise affect the likelihood of a hit?
+2. What are the long-term trends in player performance metrics, and how do they correlate with career longevity and success?
+3. Can similar models be applied to predict other critical outcomes in baseball, such as strikeouts or home runs?
+
+Our project sets the stage for continued exploration and innovation at the intersection of sports and data science. By refining our models and expanding our scope, we aim to contribute valuable insights that enhance the understanding and performance of baseball and other sports.
+
+
+## Appendix
+
+### Missingness
+
+```{r}
+#| label: fig-missingness
+#| echo: false
+#| fig-cap: This table outlines the variables that have missingness, along with the count and percentage missing.
+
+missingness_table
+```
+
+
+![A plot outlining the missingness of our dataset.](figures/fig_miss.png){#fig-miss}

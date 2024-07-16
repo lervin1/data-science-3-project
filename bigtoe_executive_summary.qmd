@@ -1,0 +1,130 @@
+---
+title: "Final Project Report"
+subtitle: |
+  | Final Project 
+  | Data Science 3 with R (STAT 301-3)
+author:
+  - name: Lindsay Ervin
+  - name: Bennett Markinson
+  - name: Justine Murdock
+  - name: Jack White
+date: today
+format:
+  html:
+    
+    toc: true
+    toc-location: left
+    embed-resources: true
+execute:
+  echo: false
+  warning: false
+from: markdown+emoji 
+reference-location: margin
+citation-location: margin
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+#| label: load-data-packages
+#| echo: false
+
+# load packages
+library(tidyverse)
+library(tidymodels)
+library(here)
+library(knitr)
+
+# load necessary data/figures
+load(here("figures/results_table.rda"))
+load(here("figures/ensemble_metric.rda"))
+load(here("refined-model-stage/results/results_table_2.rda"))
+load(here("figures/conf_matrix.rda"))
+load(here("final-model/results/final_metrics.rda"))
+```
+
+::: {.callout-tip icon=false}
+
+## Github Repo Link
+
+[Bigtoe Github Repo Link](https://github.com/stat301-3-2024-spring/final-project-3-team-bigtoe.git)
+
+:::
+
+## Introduction:
+
+Our project, entitled “Unveiling the Science Behind the Swing: A Data-Driven Exploration into Baseball Hits”, looks at the intersection of sports and data analytics, specifically in baseball. As athletes ourselves, we recognize the vast potential of data in enhancing game strategies and performance. Utilizing machine learning we attempted to predict whether a pitch will result in a successful hit or not, (is_hit) drawing from in-game statistics including pitch speed, angle, and player statistics. 
+
+Our group, led by Bennett from Northwestern’s Men's baseball team, obtained a dataset (baseball_dataset) from a connection within the Chicago White Sox organization comprising 41,749 observations from the 2023 MLB season. Through Bennett’s knowledge of baseball statistics, we were able to reduce the number of predictor variables from the original 93 down to 50 which would actually affect whether a ball was hit. Next, we employed lasso regression for variable selection which produced the 22 most important variables for feature engineering and predicting whether a batted ball is hit or not. 
+
+Our aim is to predict whether a pitch in an MLB game results in a ball in play, constituting a classification prediction task focused on the target variable is_hit. Is_hit describes whether a hit ball results in a base hit. Given our background as student-athletes, particularly in baseball, we narrowed our project scope to explore how various pitch metrics impact the likelihood of a successful hit (ending up on base). Filtering the dataset to include only pitches resulting in a ball in play allows us to analyze metrics such as exit velocity and launch angle to predict hits. Below, @fig-1, shows the distribution of pitches that resulted in a base hit (is_hit = 1) vs not (is_hit = 0). As you can see, significantly more pitches did not result in a base hit vs the number that did. More specifically, out of the 41,749 pitches (observations) in our dataset, 28,306 were not hit while 13,443 pitches were hit. This means that 32.2% of pitches were hit. 
+
+![Distribution of Target Variable](figures/fig_1.png){#fig-1}
+
+## Model Results:
+
+```{r}
+#| label: fig-2
+#| echo: FALSE
+#| fig-cap: Ensemble Model Metrics
+
+tbl_en |> 
+  kable()
+```
+
+```{r}
+#| label: fig-3
+#| echo: FALSE
+#| fig-cap: Initial Models Metrics
+
+results_table |> 
+  kable()
+```
+
+
+As can be seen in @fig-2 (initial ensemble model metrics) & @fig-3 (all other initial model metrics) above, our ensemble model has the highest mean ROC AUC at .996. The Boosted Tree model is our second top performing initial model. It had a mean ROC AUC score of .97 on the training dataset, suggesting very accurate predictive abilities. Furthermore, it had the standard error .0006. Moreover, when building our initial models, the third best performing model was our random forest model, which had a slightly lower .968 ROC AUC value and essentially equivalent standard error as the boosted tree at .0006. 
+
+Next, we reran our top three performing initial models using a feature engineered recipe that utilized lasso variable selection. However, we choose not to use the ensemble model in this refinement stage as its extremely high mean ROC AUC score suggests signifcant overfitting. Moreover, as seen in @fig-4 below, the ROC AUC values of all three top performing models are lower in this refinement step. For example, the boosted tree's mean ROC AUC dropped to .966. So, while the models' standard errors decreased to approximately .0004, given how low the standard errors were to begin with, we felt this slight drop did not outweigh the decrease in mean ROC AUC going from the initial boosted tree to the refined model. Therefore, we concluded that the initial boosted tree model was our top performing model overall. 
+
+```{r}
+#| label: fig-4
+#| echo: FALSE
+#| fig-cap: Refined Models Metrics
+
+results_table_2 |> 
+  kable()
+```
+
+
+## Final Model Analysis
+
+Lastly, we ran a final fit of the BT model workflow on our training data and saved the results. @fig-5 below summarizes our model results.
+
+```{r}
+#| label: fig-5
+#| echo: FALSE
+#| fig-cap: Final Model Metrics
+
+final_metrics |> 
+  kable()
+```
+
+
+Furthermore, The confusion matrix in @fig-6 below provides a detailed breakdown of the model's performance. It shows that the model correctly predicted the negative class (0) for 5545 instances, known as true negatives. It also accurately predicted the positive class (1) for 2300 instances, referred to as true positives. However, the model incorrectly classified 115 negative instances as positive, resulting in false positives, and misclassified 388 positive instances as negative, resulting in false negatives. Overall, the high number of true positives and true negatives reflects the model's strong performance, with few errors in both false positives and false negatives. These results demonstrate the model's effectiveness in distinguishing between the positive and negative classes, making it a reliable tool for classification tasks.
+
+```{r}
+#| label: fig-6
+#| echo: FALSE
+#| fig-cap: Confusion Matrix
+
+conf_matrix |>
+  autoplot(type = 'heatmap')
+```
+
+
+
+## Conclusion
+
+Through our data-driven exploration into baseball hits, we have gained valuable insights into the factors that influence whether a pitch results in a hit. By leveraging a dataset from the Chicago White Sox organization and employing advanced machine learning techniques, we have successfully built predictive models that reveal the underlying patterns in baseball hits.
+All in all, our project sets the stage for continued exploration and innovation at the intersection of sports and data science. By refining our models and expanding our scope, such as using the `is_hit` data to look at the percentage chance a batted ball is a hit to find the expected batting average. Using the skills that we have learned in this class and project, we aim to contribute valuable insights that enhance the understanding and performance of baseball and other sports in our future internships and careers.
+
