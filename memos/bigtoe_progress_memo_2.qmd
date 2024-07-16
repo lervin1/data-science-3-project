@@ -1,0 +1,171 @@
+---
+title: "Progress Memo 2"
+subtitle: |
+  | Final Project 
+  | Data Science 3 with R (STAT 301-3)
+author:
+  - name: Lindsay Ervin
+  - name: Bennett Markinson
+  - name: Justine Murdock
+  - name: Jack White
+date: today
+format:
+  html:
+    
+    toc: true
+    toc-location: left
+    embed-resources: true
+execute:
+  echo: false
+  warning: false
+from: markdown+emoji 
+reference-location: margin
+citation-location: margin
+editor_options: 
+  chunk_output_type: console
+---
+
+::: {.callout-tip icon=false}
+
+## Github Repo Link
+
+[Bigtoe Github Repo Link](https://github.com/stat301-3-2024-spring/final-project-3-team-bigtoe.git)
+
+:::
+
+## Prediction Problem and Data
+
+Our prediction objective is to predict if a pitch in an MLB game resulted in a ball in play or not. This is a classification prediction problem as we are looking to predict if a pitch (one observation) resulted in a ball in play (the target variable: `is_hit`). We were able to source this dataset from one of Bennett's baseball connections who works within the Chicago White Sox organization. This dataset, when given to us contained every pitch (one pitch is one observation) with all the included variables (which will be discussed below) from the 2023 MLB Baseball season. However, this dataset was over 1GB in size with over 120,000 observations, so in order to create a sizeable dataset that would effectively work for us to train a wide variety of models, we randomly downsized the larger dataset of all the pitches across the whole league during the 2023 MLB to only 41,749 observations. This smaller dataset, `baseball_dataset`, is what we will use for this classification prediction problem.
+
+
+## Assessment Metric
+
+Since our problem is a classification problem, we will be looking mainly at the metric of ROC AUC, as this is the metric we will use to pick our best model. We will also find metrics for Accuracy and the Confusion Matrix for our best model, as well as further performance metrics of precision, sensitivity, specificity, and f1 measure just to visualize a more complex metric set for this final model.
+
+## Initial Setup
+
+In the initial setup r-script you will find the necessary steps to perform our initial split, testing, and training data as well as our folds data. Additionally, we trimmed down the number of variables in our dataset as our dataset initially had over 90 variables and many of them were not important for predicting whether or not a hit occured. We cut this down to 50 variables.
+
+Next, to begin the process, first we got rid of variables that have a lot of missingness and created factor variables so that our recipes run smoother. Then, we performed our initial split with a 80/20 proportion. We chose to split it this way because we feel the 80% allocated for the training data is a sufficient amount to learn about patterns and relationship within the data. It is a split that we have done many times in class, and it has worked well with all different types of data.
+
+After we performed our initial split, we essentially created the testing and training datasets. We then decided to utilize the method of cross-validation, using the `vfold_cv` function, and create a folds dataset. We utilized 10 folds and 3 repeats, which means the entire cross-validation process is repeated 3 times. We thought these numbers were sufficient while taking account for the size of our dataset as well as computation time.
+
+We also made sure to use stratified sampling by setting the `strata` to `is_hit`, our target variable. This ultimately addresses the imbalance problem of our target variable that we found during our data exploration phase.
+
+Lastly, we made sure to save the inital split, testing, training, and folds data in our `data-splits` sub-directory so we can use them later on in our project.
+
+## Initial Recipe Building Process
+At this stage, we are using a "kitchen sink" recipe, which includes minimal feature engineering and includes all variables as a basis to compare within models to the feature-engineered recipe we will create moving forward.
+
+Going forward, we will look to add additional feature engineering to our recipe. This could include step_interact() functions in order to capture interactions between variables, such as the product of pitch speed and swing speed, or the difference between pitch angle and swing angle, to account for the combined effect on the outcome.
+
+## Recipes
+
+So far we have created 3 recipes that all encompass a kitchen sink recipe. One recipe is a generic recipe for parametric models, one is a tree based recipe, and one is a naive bayes recipe for our naive bayes model (which we are using as a baseline model).
+
+So far, we completed our kitchen sink recipe, utilizing all possible variables. Creating this recipe was difficult because our data set had a ton of missingness. 
+
+First we excluded variables with excessive NA values and those with low predictive power based on our groups baseball knowledge. We then applied steps for dummy encoding, imputing missing numerical and nominal variables, removing zero-variance predictors, and normalizing the data for my parametric recipe. For the imputation of numerical variables, We had to manually select the variables to use because many had NA values, and we could only use variables with complete data for imputation. We followed a similar process for our tree recipe, with the addition of one-hot encoding for all nominal variables during the dummy step and then a slight naive bayes adjustment as well.
+
+## Initial Models
+
+We have begun running our models and have ran 3 models by the time of this memo: a naive bayes, a logistic, and an elastic net.
+
+### Naive Bayes Model (Baseline)
+This model predicts the target variable using a simple statistic, such as the mean or median, as a reference point for evaluating the performance of more complex models.
+
+### Logistic Model
+This model estimates the probability of an event occurring by fitting data to a logistic curve. It is particularly useful for scenarios where the outcome is discrete, such as predicting whether a customer will purchase a product (yes/no).
+
+### Elastic Net Model
+This regression model applies a combination of Lasso and Ridge models to the regression coefficients. This offers a balance between feature selection and regularization to handle multicollinearity and overfitting.
+
+In an Elastic Net model, the penalty parameter controls the amount of regularization that is applied to the regression coefficients, while the mixture parameter balances between Lasso and Ridge penalties to select relevant features and prevent overfitting. For this intial run using the kitchen sink recipe, we used the default tuning parameters. 
+
+### Metric and Runtime Table
+
+We have provided a table that includes our metric value from our baseline model, logistic model, and initial elastic net model with default tuning ranges here, along with the runtimes for each model to prove our fits are successful. 
+
+```{r}
+#| label: metric-tabl
+#| echo: false
+# Load package(s) & set seed ----
+library(tidymodels)
+library(tidyverse)
+library(here)
+
+# Handle conflicts
+tidymodels_prefer()
+
+# load model tunes
+load(here("results/fit_logistic.rda"))
+load(here("results/fit_naive_bayes.rda"))
+load(here("results/tuned_elastic_1.rda"))
+
+# extract runtime for all three models
+elastic_ks_runtime <- tictoc_elastic_ks |>
+  select(runtime)
+logistic_ks_runtime <- tictoc_logistic_ks |>
+  select(runtime)
+naive_bayes_runtime <- tictoc_naive_bayes |>
+  select(runtime)
+
+# obtain naive bayes performance metrics
+naive_bayes_metrics <- fit_naive_bayes |>
+  collect_metrics() |>
+  mutate(model = "Naive Bayes") |>
+  filter(.metric == "roc_auc")
+
+
+# obtain logistic performance metrics for kitchen sink logistic
+logistic_metrics <- fit_logistic |>
+  collect_metrics() |>
+  mutate(model = "Logistic") |>
+  filter(.metric == "roc_auc")
+
+
+# make table!!
+tbl_elastic_ks <- show_best(tuned_elastic_1, metric = "roc_auc") |>
+  slice_max(mean) |>
+  select(mean, n, std_err) |>
+  mutate(model = "Elastic Net",
+         recipe = "Kitchen Sink Recipe",
+         elastic_ks_runtime,
+         metric = "ROC_AUC") 
+tbl_naive_bayes <- naive_bayes_metrics |>
+  select(mean, n, std_err) |>
+  mutate(model = "Naive Bayes",
+         recipe = "Baseline Recipe",
+         naive_bayes_runtime,
+         metric = "ROC_AUC") 
+tbl_log_ks <- logistic_metrics |>
+  select(mean, n, std_err) |>
+  mutate(model = "Logistic",
+         recipe = "Kitchen Sink Recipe",
+         logistic_ks_runtime,
+         metric = "ROC_AUC")
+
+results_table <- bind_rows(tbl_naive_bayes, tbl_log_ks, tbl_elastic_ks)
+
+results_table |>
+  slice_head(n = 3) |>
+  knitr::kable()
+# elastic net model (best model showing up three times if not sliced)
+```
+
+As we can see from this table after we have ran the models, the Naive Bayes model performs the best, as the mean `roc_auc` is 0.8859934. The logistic and elastic net models were not too far off, at a `roc_auc` of 0.8685361 & 0.8686203. This is interesting because our naive bayes model is our baseline model, but our models that we will run in the future should ultimately outperform the models we have so far.
+
+It is also important to note that the best parameters for the elastic net model is a mixture of 1 and a penalty of 1e-10. A mixture of one is essentially a balanced mix between lasso and ridge models. On the other hand a penalty of 1e-10 is very close to zero, which indicates a weak penalty.
+
+
+## Next Steps
+
+For the future of our project, we will create 4 more recipes (2 distinct recipes with 2 variants). We will ultimately use these recipes on our other models that we will be utilizing in our project. In specific, we will be running models such as random forest, boosted tree, svm poly, svm radial, neural networks, ensemble, and mars to ensure that we are able to get the highest `roc_auc` values as possible.
+
+When creating these recipes to use on our new models that we will run, we will do a deeper dive into the data exploration aspect of it. We will do a correlation matrix as well as create faceted histograms to see which variables have the most impact on our target variable `is_hit`. By doing this, we compare and contrast to see which recipes and which models are the best performing.
+
+We will also find the optimal tuning ranges for our best models and refine these tuning ranges. Originally, we will fit all of our models with the default tuning parameters. After, we will evaluate the performance of our models and change our tuning ranges when we fit our models for the second time. This ultimately ensures that we see the best model performances so that we can fit our final model on the testing dataset.
+
+## Additional Notes
+
+Hopefully everything displayed and discussed in this memo provides a well-rounded view of where we are in the process and our next steps forward. If you have any feedback, input, or advice on any piece we have done so far or in the future, please let us know. Thank you!

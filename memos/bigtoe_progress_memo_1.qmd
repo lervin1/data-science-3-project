@@ -1,0 +1,103 @@
+---
+title: "Progress Memo 1"
+subtitle: |
+  | Final Project 
+  | Data Science 3 with R (STAT 301-3)
+author:
+  - name: Lindsay Ervin
+  - name: Bennett Markinson
+  - name: Justine Murdock
+  - name: Jack White
+date: today
+format:
+  html:
+    
+    toc: true
+    toc-location: left
+    embed-resources: true
+execute:
+  echo: false
+  warning: false
+from: markdown+emoji 
+reference-location: margin
+citation-location: margin
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+#| label: load-data-packages
+#| echo: false
+
+# load packages
+library(tidyverse)
+library(tidymodels)
+library(here)
+library(naniar)
+library(kableExtra)
+
+# load data
+load(here("data/baseball_dataset.rda"))
+```
+
+::: {.callout-tip icon=false}
+
+## Github Repo Link
+
+[Bigtoe Github Repo Link](https://github.com/stat301-3-2024-spring/final-project-3-team-bigtoe.git)
+
+:::
+
+## Prediction Problem
+
+Our prediction objective is to predict if a pitch in an MLB game resulted in a ball in play or not. This is a classification prediction problem as we are looking to predict if a pitch (one observation) resulted in a ball in play (the target variable: `is_hit`).  As all 4 of us are student-athletes, we are always surrounded by sports data. It underlies every aspect of our training in order to improve in our respective sports. As a result, we all have a genuine interest in this type of data, and upon discussion, we landed on specifically baseball data for this project, as we found interest in how different pitch metrics could predict/be impactful in predicting if a certain pitch in a baseball game resulted in a ball in play. Additionally, many of us are interning in the sports industry this summer so working with sports data will only help us sharpen our skills and knowledge about the data and the industry before our work begins.
+
+## Data source
+
+One of our group members, Bennett, is a member of the NU Men's baseball team. With his knowledge and connections from both NU men's baseball and his work so far in the sports analysis industry, we were able to source this dataset from one of his connections who works within the Chicago White Sox organization. This dataset, when given to us contained every pitch (one pitch is one observation) with all the included variables (which will be discussed below) from the 2023 MLB Baseball season. However, this dataset was over 1GB in size with over 120,000 observations, so in order to create a sizeable dataset that would effectively work for us to train a wide variety of models, we randomly downsized the larger dataset of all the pitches across the whole league during the 2023 MLB to only 41,749 observations. This smaller dataset, `baseball_dataset`, is what we will use moving forward with our classification prediction problem.
+
+For any specific questions relating to this dataset, please direct them to Bennett. 
+
+
+## Data quality & complexity check
+
+In the `baseball_dataset`, there are 41,749 observations with 93 variables. We understand that there are ultimately a lot of variables, but we will perform certain functions in the future, such as lasso regression to perform variable selection and get the top 20 most important variables for feature engineering and predicting whether a batted ball is hit or not. In regards to the type of variables, the majority of the variables are numeric, as there are 72 numeric variables, measuring quantitative metrics related to the pitch and swing. There are 18 categorical/factors variables. Of these factor variables (including our target variable `is_hit`), most have a number of factor levels that are in the appropriate range to use in our modeling. It is important to note `player_name` has 845 levels, which we will remove as we move forward, as this is too many levels to include in modeling. There is also 2 logical variables: `sv_id` and `year_2023`, and 1 date variable: `game_data`. As there are a lot of variables, we will provide a codebook to explain these variables in the future as well.
+
+Below, you will see a chart outlining any variable with missing values for our dataset. As can be seen, there are 39 variables with missing data. About half of the variables with missingness have 14 observations missing, suggesting that the insturment or person needed to record those metrics was broken/unavailable for these pitches. Furthermore, this missingness, along with the missingness in another 7 columns, represents less than 1% of all observations, meaning the missing values can be easily imputed while still maintaining the accuracy of our model. This leaves 14 variables with more than 1% missingness. 9 of these have missingness ranging from 1-6%, which according to our book, remains below the general 10% line of dignity when it comes to dealing with missingness. However, the last 4 variables, `on_1b`, `on_2b`, `on_3b`, and `sv_id` should all be removed as they have over 50% missingness, making them not suitable for our modelling work. 
+
+```{r echo=FALSE}
+missingness <- baseball_dataset |> 
+  miss_var_summary() 
+
+missingness_filtered <- missingness |> 
+  filter(n_miss > 0) 
+
+kable(missingness_filtered, "html") |> 
+  kable_styling(position = "center") |> 
+  kable_classic(html_font = "Georgia") |> 
+  scroll_box(width = "100%", height = "400px")
+```
+
+
+## Analysis of Target Variable
+
+The target variable we will be looking to predict is "is_hit", which a dummy variable that represents whether a pitch was hit of not. Below, you can see a graph showing the comparison of how often a pitch was hit vs. not in our dataset. Out of the 41,749 pitches (observations) in our dataset, 28,306 were not hit while 13,443 pitches were hit. This means that 32.2% of pitches were hit. 
+
+```{r echo=FALSE}
+ 
+baseball_dataset |> 
+  ggplot(aes(x = is_hit)) +
+  geom_bar() +
+  theme_bw() +
+  labs(x = "Hit or Not (0 = Not Hit, 1 = Hit)", y = "Count", title = "Comparison of Hit vs Non Hit Pitches") +
+  theme(text=element_text(size=10,  family="Georgia"))
+```
+
+
+
+## Potential data issues
+Some potential issues with this dataset is the fact that it is a pretty large dataset. In terms of observations, there are 41,749, which is around our threshold, but there are 93 variables, which can be hard to manage and filter through. This will ultimately be fixed, though, when we do our lasso regression to see the most important variables to focus on. Also, there are many more numeric variables than categorical variables. This can make it difficult to capture all of the aspects of the data, but it should not be the biggest issue when it comes to the feature engineering process. Also, there seems to be an uneven distribution when it comes to our target variable. There are more non-hit's than hits. Ultimately, this can be accounted for by setting a strata during the cross-validation process. Lastly, there seems to be a lot of missingness in certain variables. That should not be the biggest issue, though, because we can ultimately impute these missing variables in our recipe during the feature engineering process
+
+## Misc
+
+In terms of our timeline, we hope to get started on our recipe creation(s) and plan out the models we will fit in the next week or so. Please let us know if you have any questions or concerns with any aspect of our progress so far, any feedback is greatly appreciated. Thank you!
